@@ -12,7 +12,8 @@
   "dependencies": {
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
-    "@mysten/bcs": "*",
+    "@mysten/bcs": "^0.7.0",
+    "@mysten/sui.js": "^0.36.0",
     "@mysten/wallet-kit": "*",
     "ffjavascript": "^0.2.57",
     "js-sha3": "^0.8.0",
