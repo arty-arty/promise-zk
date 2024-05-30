@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "ffjavascript": "^0.2.57",
+    "js-sha3": "^0.8.0"
+  }
+}
