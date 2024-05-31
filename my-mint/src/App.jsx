@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import styled from "styled-components";
 import { ConnectButton, WalletKitProvider } from "@mysten/wallet-kit";
 
-import { useWalletKit } from "@mysten/wallet-kit";
+import { useWalletKit, ConnectModal } from "@mysten/wallet-kit";
 import { formatAddress } from "@mysten/sui.js";
 
 import { ZqField, Scalar } from "ffjavascript";
@@ -243,7 +243,7 @@ const ImageColumn = styled(Column)`
 `;
 
 //A component that is a wallet connect button
-function ConnectToWallet() {
+const ConnectToWallet = React.forwardRef((props, ref) => {
   const { currentAccount } = useWalletKit();
   return (
     <ConnectButton
@@ -266,7 +266,7 @@ function ConnectToWallet() {
       }}
     />
   );
-}
+});
 
 //A function where the main work happens
 //Here we prove the arithmetic circuits with snarkjs, serialize the data with ark-works
@@ -407,7 +407,7 @@ async function answer_quest(snarkjs, addr, quest_id, student_answer) {
   return tx;
 }
 
-const provider = new JsonRpcProvider(testnetConnection);
+const provider = new JsonRpcProvider(mainnetConnection);
 
 const Main = () => {
   //Initialize the state of react application with data we may want to track
@@ -417,6 +417,8 @@ const Main = () => {
   const [spinning, setSpinning] = useState(true);
   const [showPopup, setShowPopup] = useState(true);
   const [objects, setObjects] = useState([]);
+
+  const [open, setOpen] = useState(false);
 
   //Load the wasm for my ark-serialzier module
   //It works fine without it in dev mode i.e (npm run dev)
@@ -446,6 +448,7 @@ const Main = () => {
 
       console.log({ fetchedObjects });
       if (objects.length == 0) {
+        console.log("objects were set")
         setObjects(fetchedObjects);
         return;
       }
@@ -509,8 +512,30 @@ const Main = () => {
     return () => clearInterval(intervalId);
   }, [objects, currentAccount]);
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = async (event, currentAccount, setOpen) => {
     event.preventDefault();
+
+    //Check if wallet connected if not open connector popup
+    console.log({ currentAccount });
+    if (!currentAccount?.address) {
+      toast.error(
+        "Please connect your wallet to Sui mainnet and submit again!"
+      );
+      setOpen(true);
+      return;
+    }
+
+    if (!currentAccount?.chains?.some(obj => obj == "sui:mainnet")) {
+      toast.error(
+        "Please change to Sui mainnet, testnet or devnet will not work!"
+      );
+      return;
+    }
+
+    //Mention it should be mainnet
+    //toast.error(
+    //   "Sorry, the zk score came. It was a wrong answer. Please try more!!!"
+    // );
 
     toast.info("Please approve the transaction to submit your answer :)");
 
@@ -534,6 +559,11 @@ const Main = () => {
 
   return (
     <>
+      <ConnectModal
+        open={open}
+        onOpenChange={(isOpen) => setOpen(isOpen)}
+        onClose={() => { setOpen(false) }}
+      />
       <Container>
         <Flex>
           <ImageLogo src="/OGOGO.png" alt="Logo with text saying PROMISE" />
@@ -541,7 +571,7 @@ const Main = () => {
         </Flex>
         {
           spinning ? (
-            <Form onSubmit={handleSubmit}>
+            <Form onSubmit={(event) => handleSubmit(event, currentAccount, setOpen)}>
               <InputColumn>
                 <QuestionImg
                   width="100%"
@@ -584,7 +614,7 @@ const Main = () => {
               />
               <Question>
                 You answered right! The zkPrize you got in the
-                wallet is special. It represents a valid zkProof of a matching
+                wallet is special. It assures the contract got a valid zkProof of a matching
                 answer.{" "}
               </Question>
               <Image src={image} alt="A reward coin" />
