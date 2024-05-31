@@ -4,10 +4,14 @@ Safely blockchainify any puzzle game with zero-knowledge proofs.
 Async hash games were never possible onchain. Behold. First time in this world. Exclusively on Sui.
 We solved this challenge with a new zk primitive.
 
+Here is a [technical video](https://youtu.be/3qw3JumActw) demo. 
+
+For more fascination try it yourself.
 Try [our simplified technical demo](https://promise-zk.netlify.app/).
 Please use mainnet only. 
 
-See [our demo game protected by Promise](https://www.youtube.com/watch?v=DhhGvzsPukc). 
+We have a full product based on this zk tech. We want to have it featured in the next Bullshark Quest.  
+See [our product - game protected by Promise](https://www.youtube.com/watch?v=DhhGvzsPukc). 
 
 ## Original technology
 
