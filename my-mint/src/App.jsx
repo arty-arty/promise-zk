@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import { ConnectButton, WalletKitProvider } from "@mysten/wallet-kit";
 
 import { useWalletKit, ConnectModal } from "@mysten/wallet-kit";
@@ -191,7 +191,20 @@ const Button = styled.button`
   }
 `;
 
+const pulse = keyframes`
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 223, 0, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 223, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 223, 0, 0);
+  }
+`;
+
 const MintButton = styled(Button)`
+  animation: ${pulse} 2s infinite;
   width: 200px;
   height: 50px;
   font-size: 24px;
