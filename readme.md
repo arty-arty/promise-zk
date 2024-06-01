@@ -2,7 +2,7 @@
 
 Safely blockchainify any puzzle game with zero-knowledge proofs.
 Async hash games were never possible onchain. Behold. First time in this world. Exclusively on Sui.
-We solved this challenge with a new zk primitive [unlock.circom](unlock.circom). Learn more about the [circom circuit here](zk-circuit.md).
+We solved this challenge with a new zk primitive [unlock.circom](unlock.circom). Learn more about this [circom circuit here](zk-circuit.md).
 
 Here is a [technical video](https://youtu.be/3qw3JumActw) demo. 
 
