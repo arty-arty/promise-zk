@@ -10,7 +10,7 @@ For more fascination try it yourself.
 Try [our simplified technical demo](https://promise-zk.netlify.app/).
 Please use mainnet only. 
 
-We have a full product based on this zk tech. We want to have it featured in the next Bullshark Quest.  
+We have a full product designed based on this zk tech. We want to have it featured in the next Bullshark Quest.  
 See [our product - game protected by Promise](https://www.youtube.com/watch?v=DhhGvzsPukc). 
 
 ## Original technology
