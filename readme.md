@@ -1,5 +1,7 @@
 # 💎 Promise 
 
+[UPDATE] Now on Walrus, enjoy it here (promise.walrus.site)[https://promise.walrus.site/].
+
 Safely blockchainify any puzzle game with zero-knowledge proofs.
 Async hash games were never possible onchain. Behold. First time in this world. Exclusively on Sui.
 We solved this challenge with a new zk primitive [unlock.circom](unlock.circom). Please see why this [circom circuit works here](zk-circuit.md).
