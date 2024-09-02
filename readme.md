@@ -1,6 +1,6 @@
 # 💎 Promise 
 
-[UPDATE] Now on Walrus, enjoy it here (promise.walrus.site)[https://promise.walrus.site/].
+[UPDATE] Now on Walrus, enjoy it here [promise.walrus.site](https://promise.walrus.site/).
 
 Safely blockchainify any puzzle game with zero-knowledge proofs.
 Async hash games were never possible onchain. Behold. First time in this world. Exclusively on Sui.
