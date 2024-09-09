@@ -633,6 +633,7 @@ async function answer_quest(snarkjs, addr, quest_id, student_answer) {
     target: verifier_pkg + "::verifier::student_answer_question",
     typeArguments: [],
     arguments: [
+      tx.pure(game_id),
       tx.pure(quest_id),
       coin,
 
