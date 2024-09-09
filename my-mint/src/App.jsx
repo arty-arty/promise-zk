@@ -75,18 +75,20 @@ const r = Scalar.fromString(
   "2736030358979909402780800718157159386076813972158567259200215660948447373041"
 );
 const F = new ZqField(r);
-const student_key = F.random().toString();
 
 //Get .move package on Sui testnet address from .env
 const verifier_pkg = process.env.packageId;
-const quest_id = process.env.questId;
-console.log({ verifier_pkg, quest_id });
+const quest_ids = process.env.questIds;
+const game_id = process.env.gameId;
+
+console.log({ verifier_pkg, quest_ids });
 
 //Define the styled components for the demo website
 const Container = styled.div`
   padding: 30px;
   border-radius: 40px;
   background-color: #b67bdb;
+  ${(props)=> props.isShaking ? "animation: blink-red 2.0s ease;": ""}
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -94,6 +96,21 @@ const Container = styled.div`
   max-width: 500px;
   width: 500px;
   max-height: 1000px;
+
+  @keyframes blink-red {
+  0% { background-color: rgba(255, 0, 0, 0.8); transform: translateX(-10px); }
+  10% { transform: translateX(0px); }
+  20% { transform: translateX(+10px); }
+  30% { transform: translateX(0px);}
+  100% { background-color: #b67bdb; }}
+
+  @keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-10px); }
+  40%, 80% { transform: translateX(10px); }
+  }
+
+}
 `;
 
 const ImageLogo = styled.img`
@@ -255,6 +272,222 @@ const ImageColumn = styled(Column)`
   margin-top: 20px;
 `;
 
+//import ReactTooltip from 'react-tooltip'; // Import react-tooltip
+import { Tooltip as ReactTooltip } from 'react-tooltip'; // Import as named export
+
+// Styled components for the Question Selector
+const Container1 = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0px;
+`;
+
+const NumberContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-content: center;
+  margin: 20px 0;
+`;
+//'#dbff00'
+const NumberButton = styled.div`
+  width: ${(props) => props.isChosen ? "37px" : "30px"}; /* Circle size adjusted */
+  height: ${(props) => props.isChosen ? "37px" : "30px"};
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: ${(props) =>
+    props.isChosen ? '#dbff00' : props.done ? '#C0C0C0' : "#ffffff"};
+  color: #b67bdb;
+  font-size: 14px;
+  font-weight: bold;
+  border-radius: 50%;
+  cursor: ${(props) => (props.done ? 'not-allowed' : 'pointer')};
+  transition: transform 0.2s ease, background-color 0.2s ease;
+
+  &:hover {
+    transform: ${(props) => (props.isChosen ? 'none' : 'scale(1.23)')};
+  }
+`;
+
+// transform: ${(props) => (props.isChosen ? 'scale(1.23)' : 'none')};
+// background-color: ${(props) =>
+//   props.isChosen ? '#f4ff81' : props.done ? '#ef9a9a' : '#76ff03'};
+
+const ArrowButton = styled.button`
+  background-color: transparent;
+  border: none;
+  font-size: 24px;
+  color: white;
+  cursor: pointer;
+  transition: transform 0.2s ease, color 0.2s ease;
+
+  &:hover {
+    color: #dbff00;
+    transform: scale(1.2);
+  }
+
+  &:disabled {
+    color: #bdc3c7;
+    cursor: not-allowed;
+  }
+`;
+
+const TooltipText = styled.span`
+  color: ${(props) => (props.isDone ? '#e57373' : '#00c853')};
+  font-family: "Krub", sans-serif;
+`;
+
+// Conversion function: number to alphabet
+const numberToAlphabet = (num) => {
+  return num;
+  //for now disabled
+  return String.fromCharCode(65 + num - 1); // 'A' = 65
+};
+
+// Main component
+const NumberSelector = ({ max, doneList, setQuestNumber, questNumber }) => {
+  const handleClick = (num) => {
+    //Allow chosing again for now
+    if (!doneList.includes(num)) {
+      setQuestNumber(num);
+    }
+    //setQuestNumber(num);
+  };
+
+  const handleNext = (e) => {
+    e.preventDefault();
+    if (questNumber < max) {
+      setQuestNumber(questNumber + 1);
+    }
+  };
+
+  const handlePrevious = (e) => {
+    e.preventDefault();
+    if (questNumber > 1) {
+      setQuestNumber(questNumber - 1);
+    }
+  };
+
+  return (
+    <Container1>
+      {/* <div>
+        <ArrowButton data-tip="Previous Question" onClick={handlePrevious} disabled={questNumber === 1}>
+          ⬅️
+        </ArrowButton>
+        <ArrowButton data-tip="Next Question" onClick={handleNext} disabled={questNumber === max}>
+          ➡️
+        </ArrowButton>
+      </div> */}
+
+      <NumberContainer>
+        {Array.from({ length: max }, (_, index) => {
+          const number = index + 1;
+          const isDone = doneList.includes(number);
+          const isChosen = questNumber === number;
+
+          return (
+            <div key={number} style={{ jusifyContent: "center", alignContent: "center" }}>
+              <NumberButton
+                data-tip={isDone ? `Question ${numberToAlphabet(number)} is already answered.` : "Click to select this question!"}
+                done={isDone}
+                isChosen={isChosen}
+                onClick={() => handleClick(number)}
+              >
+                {numberToAlphabet(number)}
+              </NumberButton>
+              <ReactTooltip />
+            </div>
+          );
+        })}
+      </NumberContainer>
+      <ReactTooltip />
+    </Container1>
+  );
+};
+
+// Styled component for grid container
+const GridContainer = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  width: 100%;
+  margin: 0 auto;
+`;
+
+// Styled component for grid item (choice button)
+const ChoiceButton = styled.button`
+  padding: 10px;
+  font-size: 22px;
+  border-radius: 10px;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  text-align: center;
+  cursor: pointer;
+
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.4);
+    border-color : #dbff00;
+  }
+
+  
+  &:active {
+    outline : 0px;
+    background-color : rgba(219, 255, 0, 1.0);
+  }
+
+  // &:focus {
+  //   outline: 5px solid #DBFF00;
+  // }
+`;
+
+// &focus {
+//   outline : 0px;
+// }
+
+const StyledText = styled.div`
+  color: #DBFF00; /* Bright yellow text */
+  font-family: "Poppins", sans-serif;
+  font-weight: 900; /* Black weight */
+  font-size: 30px; /* Adjust size according to your design */
+  padding: 10px 20px; /* Add padding for better layout */
+  text-align: center; /* Center align the text */
+`;
+
+// Main component
+const QuestionWithChoices = ({ questionText, setAnswer, handleSubmit, currentAccount, setOpen }) => {
+  // Function to parse options from the question text
+  const parseOptions = (text) => {
+    const optionsPart = text.match(/\[\[OPTIONS\]\]:\s*(.*)$/)?.[1];
+    if (!optionsPart) return [];
+    return optionsPart.split(', ').map(option => option.trim());
+  };
+
+  // Get the options
+  const options = parseOptions(questionText);
+
+  // Handle option click
+  const handleOptionClick = (option) => {
+    setAnswer(option.split(')')[0]);
+    handleSubmit(option, currentAccount, setOpen); // Invoke handleSubmit after setting the answer
+  };
+
+  return (
+    <>
+      <GridContainer>
+        {options.map((option, index) => (
+          <ChoiceButton key={index} onClick={() => handleOptionClick(option)}>
+            {option}
+          </ChoiceButton>
+        ))}
+      </GridContainer>
+    </>
+  );
+};
+
 //A component that is a wallet connect button
 const ConnectToWallet = React.forwardRef((props, ref) => {
   const { currentAccount } = useWalletKit();
@@ -262,8 +495,9 @@ const ConnectToWallet = React.forwardRef((props, ref) => {
     <ConnectButton
       connectText={"Connect Wallet"}
       connectedText={
-        currentAccount && `Connected: ${formatAddress(currentAccount.address)}`
+        currentAccount && `Connected: ${formatAddress(currentAccount.address)} Score: ${props?.level}`
       }
+      class={"myInput"}
       style={{
         justifySelf: "flex-end",
         marginRight: 20,
@@ -271,7 +505,7 @@ const ConnectToWallet = React.forwardRef((props, ref) => {
         backgroundColor: "#DBFF00",
         color: "#B67BDB",
         width: 120,
-        height: 40,
+        height: 80,
         fontWeight: "bold",
         padding: "0em 0em",
         fontSize: 15,
@@ -285,10 +519,10 @@ const ConnectToWallet = React.forwardRef((props, ref) => {
 //Here we prove the arithmetic circuits with snarkjs, serialize the data with ark-works
 //And send transaction to Sui network smart contract
 async function answer_quest(snarkjs, addr, quest_id, student_answer) {
+  const student_key = F.random().toString();
   //Encode the answer to a point on elliptic curve using try-and-increment method
   const { xx: student_H_x, yy: student_H_y } = string_to_curve(student_answer);
 
-  const provider = new JsonRpcProvider(mainnetConnection);
   const addr_for_proof = addr_to_bigint(addr).toString();
   console.log(addr_for_proof);
 
@@ -422,17 +656,57 @@ async function answer_quest(snarkjs, addr, quest_id, student_answer) {
 
 const provider = new JsonRpcProvider(mainnetConnection);
 
+import Confetti from 'react-confetti';
+import { useWindowSize } from 'react-use';
+
+function arrayToDict(array) {
+  const dict = {};
+  if (!array) return dict;
+  array.forEach(entry => {
+    const key = entry.fields.key;
+    const value = entry.fields.value;
+    dict[key] = value;
+  });
+  return dict;
+}
+
+function compareAndNotify(oldState, newState, notifyChange) {
+  const allKeys = new Set([...Object.keys(oldState), ...Object.keys(newState)]);
+
+  allKeys.forEach(key => {
+    const oldValue = oldState[key];
+    const newValue = newState[key];
+    console.log({ oldValue, newValue });
+    if (oldValue !== newValue) {
+      // Call your custom notification function with the key and new value
+      notifyChange(key, newValue);
+    }
+  });
+}
+
 const Main = () => {
   //Initialize the state of react application with data we may want to track
   //And which influences the outcome of program execution
   const [answer, setAnswer] = useState("");
+  const [question, setQuestion] = useState("Welcome! Your question is loading...");
+
   const [image, setImage] = useState("/question-mark.png");
   const [spinning, setSpinning] = useState(true);
   const [showPopup, setShowPopup] = useState(true);
   const [objects, setObjects] = useState([]);
 
   const [open, setOpen] = useState(false);
+  const [gotIt, setGotIt] = useState(0);
 
+  const [showConfetti, setShowConfetti] = useState(false);
+  const { width, height } = useWindowSize(); // Get window size for confetti effect
+
+  // Method to trigger confetti when the answer is right
+  const triggerConfetti = () => {
+    setShowConfetti(true);
+    console.log("Triggered confetti!")
+    setTimeout(() => setShowConfetti(false), 3000); // Stop after 3 seconds
+  };
   //Load the wasm for my ark-serialzier module
   //It works fine without it in dev mode i.e (npm run dev)
   //But in production mode like on netlify vite "forgets" to do it, so we manually should init the module here
@@ -443,91 +717,253 @@ const Main = () => {
 
   //Use wallet hook given by MystenLabs to propose transactions and see current connected account address
   const { currentAccount, signAndExecuteTransactionBlock } = useWalletKit();
+  const [level, setLevel] = useState(0);
+  const [answeredRight, setAnsweredRight] = useState(null);
+  const [answeredWrong, setAnsweredWrong] = useState(null);
+
+  const [questNumber, setQuestNumber] = useState(1);
+
+  const answeredWrongRef = useRef(answeredWrong); // Create a ref to hold the current value of answeredWrong
+  const answeredRightRef = useRef(answeredRight);
+
+  const [isShaking, setIsShaking] = useState(false);
+  const [showRedOverlay, setShowRedOverlay] = useState(false);
+
+  const handleWrongAnswer = () => {
+    // Trigger shake and red overlay
+    setIsShaking(true);
+    setShowRedOverlay(true);
+
+    // Stop the shake effect after 0.5s (duration of the shake animation)
+    setTimeout(() => setIsShaking(false), 2*1000);
+
+    // Stop the red overlay effect after 0.3s (duration of the blink animation)
+    setTimeout(() => setShowRedOverlay(false), 2*1000);
+  };
 
   //Here is every 2 seconds checker for changes in the list of objects owned by a person
   //If it changes and she suddenly gets an NFT then we congratulate
   //If it changes and the player gets wrong answer record the we say sorry and encourage trying more
+  // useEffect(() => {
+  //   const intervalId = setInterval(async () => {
+  //     //Fetch owned object
+  //     const fetchedObjects = await provider.getOwnedObjects({
+  //       owner: currentAccount.address,
+  //       options: { showContent: true },
+  //     });
+  //     fetchedObjects.data.map((obj) => {
+  //       delete obj.data.digest;
+  //       delete obj.data.version;
+  //     });
+
+  //     console.log({ fetchedObjects });
+  //     if (objects.length == 0) {
+  //       console.log("objects were set")
+  //       setObjects(fetchedObjects);
+  //       return;
+  //     }
+
+  //     if (
+  //       JSON.stringify(objects) !== JSON.stringify(fetchedObjects) &&
+  //       objects?.data?.length > 0 &&
+  //       fetchedObjects?.data?.length > 0
+  //     ) {
+  //       setObjects(fetchedObjects);
+  //       console.log("changed objects");
+
+  //       //We need a system with sets because by default versions and digests of objects might change
+  //       //Like when sending coins to interact with this contract
+  //       //It would give us a false start without proper tracking
+  //       const set2 = new Set(objects.data.map((obj) => obj.data.objectId));
+  //       const set1 = new Set(
+  //         fetchedObjects.data.map((obj) => obj.data.objectId)
+  //       );
+
+  //       // Find the difference between set1 and set2
+  //       const difference = new Set([...set1].filter((x) => !set2.has(x)));
+  //       console.log({ set1, set2, difference });
+  //       // Convert the resulting set back to an array
+  //       const differenceArray = Array.from(difference);
+  //       const diffObjArray = fetchedObjects.data.filter((obj) =>
+  //         differenceArray.includes(obj.data.objectId)
+  //       );
+  //       console.log({ differenceArray, diffObjArray });
+
+  //       //This is event of right answer when a person finally got rewarded with an NFT
+  //       if (
+  //         diffObjArray.some(
+  //           (obj) =>
+  //             obj?.data?.content?.type ===
+  //             verifier_pkg + "::verifier::RightAnswerNFT"
+  //         )
+  //       ) {
+  //         //setSpinning(false);
+  //         setGotIt(gotIt + 1);
+  //         triggerConfetti();
+  //         toast.success(
+  //           "Right! Look for a prize in your wallet when Score is 1, 3, 7, or 10!!!"
+  //         );
+  //         //setImage("/golden.png");
+  //       }
+
+  //       if (
+  //         diffObjArray.some(
+  //           (obj) =>
+  //             obj?.data?.content?.type ===
+  //             verifier_pkg + "::verifier::RewardNFT"
+  //         )
+  //       ) {
+  //         //setSpinning(false);
+  //         toast.success(
+  //           `Congratulations! The NFT prize came to your wallet. Continue playing for more!!`
+  //         );
+  //         //setImage("/golden.png");
+  //       }
+
+  //       //This is event of wrong answer when a person just got a WrongAnswerNFT record
+  //       if (
+  //         diffObjArray.some(
+  //           (obj) =>
+  //             obj?.data?.content?.type ===
+  //             verifier_pkg + "::verifier::WrongAnswerNFT"
+  //         )
+  //       ) {
+  //         toast.error(
+  //           "Sorry, the zk score came. It was a wrong answer. Please try more!!!"
+  //         );
+  //       }
+  //     }
+  //   }, 2000);
+
+
+
+  //   return () => clearInterval(intervalId);
+  // }, [objects, currentAccount]);
+
+  const findFirstUnansweredQuestion = (quest_ids, answered_right) => {
+    // Loop through quest_ids and find the first one that isn't in answered_right
+    for (let i = 0; i < quest_ids.length; i++) {
+      if (!answered_right.includes(quest_ids[i])) {
+        // Return the question number (1-based index)
+        return i + 1;
+      }
+    }
+
+    // If all questions are answered
+    return null; // or return a message like "All questions are answered"
+  };
+
+  //Here is every 2 seconds checker of a person's profile in this game
   useEffect(() => {
-    const intervalId = setInterval(async () => {
+    const fetcher = async () => {
       //Fetch owned object
-      const fetchedObjects = await provider.getOwnedObjects({
-        owner: currentAccount.address,
+      const gameObject = await provider.getObject({
+        id: game_id,
         options: { showContent: true },
       });
-      fetchedObjects.data.map((obj) => {
-        delete obj.data.digest;
-        delete obj.data.version;
-      });
+      // fetchedObjects.data.map((obj) => {
+      //   delete obj.data.digest;
+      //   delete obj.data.version;
+      // });
+      console.log({ gameObject });
+      //Probably should set gameObject one time and stop the intervals!!!!!!
 
-      console.log({ fetchedObjects });
-      if (objects.length == 0) {
-        console.log("objects were set")
-        setObjects(fetchedObjects);
-        return;
-      }
+      const profilesTableId = gameObject?.data?.content?.fields?.profiles?.fields?.id?.id;
+      console.log({ profilesTableId });
 
-      if (
-        JSON.stringify(objects) !== JSON.stringify(fetchedObjects) &&
-        objects?.data?.length > 0 &&
-        fetchedObjects?.data?.length > 0
-      ) {
-        setObjects(fetchedObjects);
-        console.log("changed objects");
+      //profiles table id could be stored by professor.js at creation
+      //Statically
+      //console.log({myaddress: currentAccount?.address, intervalId})
 
-        //We need a system with sets because by default versions and digests of objects might change
-        //Like when sending coins to interact with this contract
-        //It would give us a false start without proper tracking
-        const set2 = new Set(objects.data.map((obj) => obj.data.objectId));
-        const set1 = new Set(
-          fetchedObjects.data.map((obj) => obj.data.objectId)
-        );
+      if (currentAccount.address) {
+        const table_field = await provider.getDynamicFieldObject({
+          parentId: profilesTableId,
+          //name: currentAccount?.address,
+          name: {
+            type: "address",
+            value: currentAccount?.address,
+          }
 
-        // Find the difference between set1 and set2
-        const difference = new Set([...set1].filter((x) => !set2.has(x)));
-        console.log({ set1, set2, difference });
-        // Convert the resulting set back to an array
-        const differenceArray = Array.from(difference);
-        const diffObjArray = fetchedObjects.data.filter((obj) =>
-          differenceArray.includes(obj.data.objectId)
-        );
-        console.log({ differenceArray, diffObjArray });
+          //fetch the object content field
+          //options: { showContent: true },
+        });
+        let { level, answered_right, wrong_attempts } = table_field?.data?.content?.fields?.value?.fields || {};
+        console.log("Fetched profile: ", table_field?.data?.content?.fields?.value?.fields || {});
+        const wrong_array = wrong_attempts?.fields?.contents;
+        if (!answered_right) answered_right = [];
+        const wrong_dict = arrayToDict(wrong_array);
+        console.log({ wrong_dict })
+        setLevel(level || 0);
 
-        //This is event of right answer when a person finally got rewarded with an NFT
-        if (
-          diffObjArray.some(
-            (obj) =>
-              obj?.data?.content?.type ===
-              verifier_pkg + "::verifier::RewardNFT"
-          )
-        ) {
-          setSpinning(false);
+        const onRightAnswer = (answeredRightRef.current) && (answeredRightRef.current?.length != answered_right?.length) && (answered_right?.length!=0);
+        const onRightAnswerOrLoad = (answeredRightRef?.current?.length != answered_right?.length);
+
+        console.log(answeredRightRef.current, answered_right);
+        console.log(onRightAnswer);
+
+        setAnsweredRight(answered_right);
+        answeredRightRef.current = answered_right;
+
+        //If possible switch to the first unanswered question.
+        if (onRightAnswerOrLoad){
+          const to_question_num = findFirstUnansweredQuestion(quest_ids, answered_right);
+          setQuestNumber(to_question_num);
+        }
+
+        if (onRightAnswer) {
+          const to_question_num = findFirstUnansweredQuestion(quest_ids, answered_right);
+          console.log({ to_question_num });
+          triggerConfetti();
           toast.success(
-            "Yes you were right! Look for a prize in your wallet!!!"
+            "Right! Look for a prize in your wallet when Score is 1, 3, 7, or 10!!!"
           );
-          setImage("/golden.png");
+          setQuestNumber(to_question_num);
         }
+        console.log({ level, answered_right });
 
-        //This is event of wrong answer when a person just got a WrongAnswerNFT record
-        if (
-          diffObjArray.some(
-            (obj) =>
-              obj?.data?.content?.type ===
-              verifier_pkg + "::verifier::WrongAnswerNFT"
-          )
-        ) {
-          toast.error(
-            "Sorry, the zk score came. It was a wrong answer. Please try more!!!"
-          );
-        }
+        console.log(wrong_dict, answeredWrongRef.current)
+        if (answeredWrongRef.current) compareAndNotify(wrong_dict, answeredWrongRef.current,
+          (key, newValue) => {
+            handleWrongAnswer();
+            toast.error(
+              `Sorry, the zk score came. It was a wrong answer. Please try more!!!`
+            );
+          }
+        );
+        setAnsweredWrong(wrong_dict);
+        answeredWrongRef.current = wrong_dict;
+        console.log("Set it the wrong to:", wrong_dict);
       }
-    }, 2000);
 
-    return () => clearInterval(intervalId);
-  }, [objects, currentAccount]);
+
+    }
+    fetcher();
+    const intervalId = setInterval(fetcher, 2000);
+    return () => { clearInterval(intervalId); console.log({ cleared: intervalId }) }
+  }, [currentAccount, gotIt]);
+
+  useEffect(() => {
+    const fetch = async () => {
+      const chosen_quest_id = quest_ids[questNumber - 1];
+      console.log({ chosen_quest_id })
+      const {
+        data: { content: chosen_quest_object },
+      } = await provider.getObject({
+        id: chosen_quest_id,
+        // fetch the object content field
+        options: { showContent: true },
+      });
+      console.log({ chosen_quest_object })
+      const question = chosen_quest_object?.fields?.question;
+      setQuestion(question);
+    }
+    fetch().catch(() => { setQuestion("Question does not exist. Please try another one!") });
+  }, [questNumber])
 
   const handleSubmit = async (event, currentAccount, setOpen) => {
     event.preventDefault();
-
+    console.log({ event })
+    //triggerConfetti();
     //Check if wallet connected if not open connector popup
     console.log({ currentAccount });
     if (!currentAccount?.address) {
@@ -538,6 +974,7 @@ const Main = () => {
       return;
     }
 
+    //I temporarily allowed testnet, well for testing! Please uncomment this in production.
     if (!currentAccount?.chains?.some(obj => obj == "sui:mainnet")) {
       toast.error(
         "Please change to Sui mainnet, testnet or devnet will not work!"
@@ -551,6 +988,18 @@ const Main = () => {
     // );
 
     toast.info("Please approve the transaction to submit your answer :)");
+
+    //TODO: Switcher that will switch to the next question of the game
+    //It is a button arrows below
+    //Now for new state there is new question id, so set it too
+    //Most importantly based on quest_id, fetch its question as a text and put it into the app view
+
+    //By the way sometimes fetch the current level of the person
+    //And answered questions
+    //And make button grey and saying already answered, if already answered
+
+    //For now a simplified version
+    const quest_id = quest_ids[questNumber - 1]
 
     //Use the function with zk proofs to generate the proving transaction
     const txBlock = await answer_quest(
@@ -570,23 +1019,48 @@ const Main = () => {
     setAnswer("");
   };
 
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault(); // Prevent the default Enter key behavior in the input
+      handleSubmit(event, currentAccount, setOpen);
+    }
+  };
+
   return (
     <>
+      {showConfetti && <Confetti width={width} height={height} />}
       <ConnectModal
         open={open}
         onOpenChange={(isOpen) => setOpen(isOpen)}
         onClose={() => { setOpen(false) }}
-      />
-      <Container>
+        />
+      <Container isShaking={isShaking}>
         <Flex>
           <ImageLogo src="/OGOGO.png" alt="Logo with text saying PROMISE" />
-          <ConnectToWallet></ConnectToWallet>
+
+          <ConnectToWallet level={level}></ConnectToWallet>
+          {/* <p>Your on-chain level: {level}; Reach 1 level for a 1$ worth NFT prize! </p> */}
+
         </Flex>
         {
           spinning ? (
             <Form onSubmit={(event) => handleSubmit(event, currentAccount, setOpen)}>
               <InputColumn>
-                <QuestionImg
+
+                <StyledText
+                  marginTop="100px">SUI Quest</StyledText>
+                <NumberSelector
+                  max={11}
+                  doneList={answeredRight ? answeredRight.map(q => quest_ids.indexOf(q) + 1) : []}
+                  setQuestNumber={setQuestNumber}
+                  questNumber={questNumber}
+                ></NumberSelector>
+                <Question
+                  style={{ marginBottom: 100 }}
+                >
+                  {question.includes("[[OPTIONS]]") ? question.split("[[OPTIONS]]")[0] : question}
+                </Question>
+                {/* <QuestionImg
                   width="100%"
                   src="/Who.svg"
                   alt="Question text: Who co-invented zero-knowledge-proofs?"
@@ -596,25 +1070,55 @@ const Main = () => {
                   width="100%"
                   src="/Variants8.svg"
                   alt="Answer variants: Vitalik Buterin, Changpeng Zhao, Silvio Micali, Satoshi Nakamoto"
-                />
-                <QuestionImg
+                  />
+                  <QuestionImg
                   marginTop="100px"
                   width="80%"
                   src="/askType.svg"
                   alt="Logo with text saying PROMISE"
-                />
-                <Input
-                  type="text"
-                  placeholder="???"
-                  value={answer}
-                  onChange={(e) => setAnswer(e.target.value)}
-                />
-                <MintButton type="submit">
-                  <ButtonImg
-                    src="/zkAnswer.svg"
+                /> */}
+                {/* answeredRight.includes(quest_ids[questNumber - 1]) */}
+                {(false) ? (
+                  <p>Good job! You briliantly answered this question. Remember? ;) Answer all other questions for the 10000$ prize.</p>
+                ) : (<>
+
+                  {/* <QuestionImg
+                    marginTop="100px"
+                    width="80%"
+                    src="/askType.svg"
                     alt="Logo with text saying PROMISE"
-                  />
-                </MintButton>
+                  /> */}
+                  {question.includes("[[OPTIONS]]") ? <>
+                    <StyledText
+                      style={{ marginBottom: 20 }}>Pick your answer here</StyledText>
+                    <QuestionWithChoices
+                      questionText={question}
+                      setAnswer={setAnswer}
+                      handleSubmit={handleSubmit}
+                      currentAccount={currentAccount}
+                      setOpen={() => console.log("Opened")}
+                    />
+
+                  </>
+                    : <>
+                      <StyledText
+                        marginTop="100px">Type your answer here</StyledText>
+                      <Input
+                        type="text"
+                        placeholder="???"
+                        value={answer}
+                        onChange={(e) => setAnswer(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                      />
+                      <MintButton type="submit">
+                        <ButtonImg
+                          src="/zkAnswer.svg"
+                          alt="Logo with text saying PROMISE"
+                        />
+                      </MintButton></>}
+
+                </>
+                )}
               </InputColumn>
             </Form>
           ) : (
@@ -635,7 +1139,10 @@ const Main = () => {
           )
           //
         }
+
+     
       </Container>
+      {/* Conditionally render the red overlay */}
     </>
   );
 };

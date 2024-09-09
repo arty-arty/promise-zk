@@ -7,7 +7,9 @@ import topLevelAwait from "vite-plugin-top-level-await";
 import nodePolyfills from 'vite-plugin-node-stdlib-browser'
 
 const packageId = readFileSync('../client-scripts/package.id', 'utf8').trim();
-const questId = readFileSync('../client-scripts/quest.id', 'utf8').trim();
+const questIds = readFileSync('../client-scripts/quest.ids', 'utf-8').split('\n').map(line => line.trim());
+const gameId = readFileSync('../client-scripts/game.id', 'utf8').trim();
+
 import path from 'path';
 
 // https://vitejs.dev/config/
@@ -41,6 +43,7 @@ export default defineConfig({
   define: {
     // process: { browser: true },
     'process.env.packageId': JSON.stringify(packageId),
-    'process.env.questId': JSON.stringify(questId),
+    'process.env.questIds': JSON.stringify(questIds),
+    'process.env.gameId': JSON.stringify(gameId),
   },
 })
