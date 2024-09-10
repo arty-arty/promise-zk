@@ -19,6 +19,8 @@ const student_key = F.random().toString();
 
 require('dotenv').config();
 const mnemonic = process.env.PHRASE;
+const net = process.env.NET;
+
 //!!End of must be kept secret section!!
 
 const verifier_pkg = fs.readFileSync('package.id', 'utf8').trim();
@@ -61,8 +63,10 @@ async function answer_quest(quest_id, student_answer) {
     const { xx: student_H_x, yy: student_H_y } = string_to_curve(student_answer);
 
     const keypair = Ed25519Keypair.deriveKeypair(mnemonic);
+    const net = process.env.NET;
+    const connection = (net == "testnet") ? testnetConnection : mainnetConnection;
+    const provider = new JsonRpcProvider(connection);
 
-    const provider = new JsonRpcProvider(testnetConnection);
     const signer = new RawSigner(keypair, provider);
 
     const addr = await signer.getAddress()

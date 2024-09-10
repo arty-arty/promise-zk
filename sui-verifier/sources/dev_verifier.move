@@ -1,20 +1,23 @@
 module dev::verifier {
     use sui::tx_context::{Self, TxContext};
     use std::vector::{Self, append};
+    use sui::vec_map::{Self, VecMap};
     use std::debug;
     use sui::groth16::{Curve, public_proof_inputs_from_bytes, prepare_verifying_key,
     proof_points_from_bytes, verify_groth16_proof, bn254}; //pvk_from_bytes,
     use sui::hex;
     use sui::url::{Self, Url};
     use std::string::{Self, String};
+    //use std::option::{Option};
+    use std::ascii::{Self};
     use sui::table::{Self, Table};
     use sui::transfer;
-    use sui::object::{Self, UID};
+    use sui::object::{Self, UID, uid_to_address};
     use sui::address::{Self};
     use sui::coin::{Self};
     use sui::sui::{SUI};
     use sui::event;
-    use sui::dynamic_object_field as ofield;
+    //use sui::dynamic_object_field as ofield;
     use sui::clock::{Self, Clock};
 
     // The creator bundle: these two packages often go together.
@@ -26,13 +29,21 @@ module dev::verifier {
         name: String,
         description: String,
         url: Url,
+        b36addr: String,
+        level: u64,
+        game: address,
     }
 
     struct WrongAnswerNFT has key, store{
         id: UID,
     }
 
+    struct RightAnswerNFT has key, store{
+        id: UID,
+    }
+
     struct Answer has store, drop{
+        quest: address,
         student_a_hash: vector<u8>, 
         student_aH_x: vector<u8>,   
         student_aH_y: vector<u8>,   
@@ -42,31 +53,71 @@ module dev::verifier {
         akP_y: vector<u8>,
     }
 
+    struct Game has key, store {
+        id : UID,
+        professor_address: address,
+        questions: vector<address>,
+        profiles: Table<address, UserProfile>,
+        answers: Table<UserQuest, Answer>,
+    }
+
+    struct UserQuest has drop, copy, store {
+        user: address,
+        quest: address,
+    }
+
+    struct UserProfile has key, store {
+        id : UID,
+        level : u64,
+        answered_right : vector<address>,
+        wrong_attempts: VecMap<address, u64>,
+    }
+
     struct Quest has key, store{
         id: UID,
+        points: u64,
+        game: address,
+        winners: Table<address, bool>,
+        //for_level: u64,
         question: String,
+        image_blob: String,
         professor_address: address,
         professor_k_hash: vector<u8>,
         professor_kP_x: vector<u8>,
         professor_kP_y: vector<u8>,
-        //answers: Table<address, Answer>,
     }
 
     const EInvalidCommitment: u64 = 0;
-    const EInvalidUnlock: u64 = 1;
+    //const EInvalidUnlock: u64 = 1;
     const EAnotherProfessor: u64 = 2;
     const EStudentNoAnswer: u64 = 3;
     const EProfessorBadMultiplication: u64 = 4;
     const EStudentBadMultiplication: u64 = 5;
-    const EAlreadyAnswered: u64 = 6;
+    //const EAlreadyAnswered: u64 = 6;
 
     //Deal with timestamps later, when all proofs are working
     //And js client for student, and for professor works right
 
-    public entry fun professor_create_quest(question: vector<u8>, proof:vector<u8>, professor_k_hash: vector<u8>,
+    public entry fun professor_create_game(ctx: &mut TxContext)
+    {
+        let game = Game {
+            id : object::new(ctx),
+            profiles : table::new(ctx),
+            professor_address: tx_context::sender(ctx),
+            questions: vector::empty(),
+            answers: table::new(ctx),
+        };
+        transfer::share_object(game); 
+    }
+
+    public entry fun professor_create_quest(game: &mut Game, points: u64, image_blob: vector<u8>, question: vector<u8>, proof:vector<u8>, professor_k_hash: vector<u8>,
         professor_kP_x: vector<u8>, professor_kP_y: vector<u8>, ctx: &mut TxContext)
     {
         let professor_address = tx_context::sender(ctx);
+
+        //Assert that professor can edit this shared object, because he created it
+        assert!(game.professor_address==professor_address, 98331);
+
         //professor_addr_serialized with first byte (least significant) flushed to make it fit 253-bit curve base field
         let professor_addr_serialized = address::to_bytes(professor_address);
         let last_byte = vector::borrow_mut(&mut professor_addr_serialized, 31);
@@ -84,15 +135,19 @@ module dev::verifier {
         //Auto write professor address
         let quest = Quest {
             id: object::new(ctx),
+            //for_level: vector::length(&game.questions),
+            winners: table::new(ctx),
+            points: points,
+            game: uid_to_address(&game.id),
             question: string::utf8(question),
+            image_blob: string::utf8(image_blob),
             professor_address,
             professor_k_hash,
             professor_kP_x,
             professor_kP_y,
         };
-        let tab: Table<address, Answer> = table::new(ctx);
-        ofield::add(&mut quest.id, b"answers", tab);
-        transfer::share_object(quest)   
+        vector::push_back(&mut game.questions, uid_to_address(&quest.id));
+        transfer::share_object(quest);   
     }
 
     const EInsufficientCollateral: u64  = 7;
@@ -100,6 +155,8 @@ module dev::verifier {
     const MIST_PER_SUI: u64 = 1_000_000_000;
 
     struct StudentAnsweredEvent has copy, drop {
+        game_id: address,
+        question_id: address,
         timestamp_answered: u64, //Deal with it later
         student_address: address,
         akP_x: vector<u8>,          
@@ -108,18 +165,28 @@ module dev::verifier {
         student_aH_y: vector<u8>,
     }
 
-    public entry fun student_answer_question(shared_quest: &mut Quest, c: coin::Coin<SUI>, proof_commit: vector<u8>,
+    public entry fun student_answer_question(shared_game: &mut Game, shared_quest: &mut Quest, c: coin::Coin<SUI>, proof_commit: vector<u8>,
      student_a_hash: vector<u8>, student_aH_x: vector<u8>, student_aH_y: vector<u8>, 
      proof_unlock: vector<u8>, akP_x: vector<u8>, akP_y: vector<u8>, clock: &Clock, ctx: &TxContext)
     {
+
+        //Check that this Quest is bound exactly to this game
+        //assert!(uid_to_address(&shared_game.id) == shared_quest.game, 121212);
+        let quest_uid = uid_to_address(&shared_quest.id);
+
         let student_address = tx_context::sender(ctx);
-        let Quest {id: _, question: _, professor_address, professor_k_hash: _,
+        let Quest {id: _, game: game, winners, question: _, points: _, image_blob: _, professor_address, professor_k_hash: _,
             professor_kP_x, professor_kP_y} = shared_quest;
 
-        let answers = ofield::borrow_mut<vector<u8>, Table<address, Answer>>(&mut shared_quest.id, b"answers");
+        //Check that the user did not yet win this question
+        assert!(!table::contains(winners, student_address), 94411);
+
+        
+        // let answers = table::borrow_mut(&mut shared_game.answers, 
+        // UserQuest{ quest: quest_uid , user: student_address});
 
         //Take 1 SUI for the mint anyway
-        //Send it to professor address, retrieved for Quest object
+        //Send it to professor addfress, retrieved for Quest object
         //!!!Enable mimimal collateral during production!!!
         //Just remove "/ 10_000_000" to do it
         
@@ -127,7 +194,9 @@ module dev::verifier {
         transfer::public_transfer(c, *professor_address);
 
         //Check that I did not answer already i.e Answers map does not have caller address key
-        let has_place = !table::contains(answers, student_address);
+        let has_place = !table::contains(&shared_game.answers, 
+         UserQuest{ quest: quest_uid , user: student_address});
+
         //Enable in production, disabled just to quickly test event subscription
         assert!(has_place, EStudentNoAnswer);
 
@@ -153,6 +222,7 @@ module dev::verifier {
         //Write this commitment to answer
         //Write this multiplication result to answer
         let answer = Answer {
+            quest: uid_to_address(&shared_quest.id),
             student_a_hash, 
             student_aH_x,   
             student_aH_y,   
@@ -162,8 +232,12 @@ module dev::verifier {
             akP_y,
         };
 
-        if (has_place) table::add(answers, student_address, answer);
+        if (has_place) table::add(&mut shared_game.answers, 
+        UserQuest{ quest: quest_uid , user: student_address}, answer);
+
         event::emit(StudentAnsweredEvent{
+            game_id: *game,
+            question_id: uid_to_address(&shared_quest.id),
             timestamp_answered, //Deal with it later
             student_address,
             akP_x,          
@@ -180,16 +254,45 @@ module dev::verifier {
         //Or different scheme with frozen collateral can be made
     }
 
-    public entry fun professor_score_answer(shared_quest: &mut Quest, student: address, 
+    public fun get_blob_from_number(num: u64): ascii::String {
+        let static_map: vector<ascii::String> = vector[
+            ascii::string(b"0"),
+            ascii::string(b"https://arty-arty.github.io/Bronze.svg"),
+            ascii::string(b"2"),
+            ascii::string(b"https://arty-arty.github.io/Silver.svg"),
+            ascii::string(b"4"),
+            ascii::string(b"5"),
+            ascii::string(b"6"),
+            ascii::string(b"https://arty-arty.github.io/Gold.svg"),
+            ascii::string(b"8"),
+            ascii::string(b"9"),
+            ascii::string(b"https://arty-arty.github.io/Diamond.svg"),
+        ];
+
+        if (num < vector::length(&static_map)) {
+            *vector::borrow(&static_map, num)
+        } else {
+            ascii::string(b"Invalid")
+        }
+    }
+
+
+    public entry fun professor_score_answer(shared_quest: &mut Quest, shared_game: &mut Game, student: address, 
     proof:vector<u8>, professor_out_kaH_x: vector<u8>, professor_out_kaH_y: vector<u8>, ctx: &mut TxContext)
     {
         let _professor_address = tx_context::sender(ctx);
-        let Quest {id: _, question: _, professor_address, professor_k_hash,
+        let Quest {id: _, game, question: _, winners, points, image_blob: _, professor_address, professor_k_hash,
             professor_kP_x: _, professor_kP_y: _, } = shared_quest;
-        let answers = ofield::borrow_mut<vector<u8>, Table<address, Answer>>(&mut shared_quest.id, b"answers");
+        let quest_id = &shared_quest.id;
+        let quest_uid = uid_to_address(quest_id);
 
+        let answers = &mut shared_game.answers;
+       
         //Assert that this question belongs to this professor
         assert!(_professor_address == *professor_address, EAnotherProfessor);
+
+        //Assert that this is the Game for which the question is bound
+        assert!(*game == uid_to_address(&shared_game.id), 8980);
 
         //professor_addr_serialized with first byte (least significant) flushed to make it fit 253-bit curve base field
         let professor_addr_serialized = address::to_bytes(_professor_address);
@@ -197,10 +300,10 @@ module dev::verifier {
         *last_byte = 0;
 
         //Assert that this student answered indeed
-        assert!(table::contains(answers, student), EStudentNoAnswer);
+        assert!(table::contains(answers, UserQuest{ quest: quest_uid , user: student}), EStudentNoAnswer);
 
         //Extract his answer
-        let student_answer = table::borrow(answers, student);
+        let student_answer = table::borrow(answers, UserQuest{ quest: quest_uid , user: student});
 
         let student_aH_x = student_answer.student_aH_x;
         let student_aH_y = student_answer.student_aH_y;
@@ -214,61 +317,106 @@ module dev::verifier {
 
         //If verified professor_final point matches student_final_point
         let right_answer: bool = (professor_out_kaH_x == student_answer.akP_x) && (professor_out_kaH_y == student_answer.akP_y);
+        
+        let profiles = &mut shared_game.profiles;
+        //If user has no profile create his profile
+        if (!table::contains(profiles, student))
+        {
+            let new_profile = UserProfile {
+                id: object::new(ctx),
+                level: 0,
+                answered_right: vector::empty(),
+                wrong_attempts: vec_map::empty(),
+            };
+            table::add(profiles, student, new_profile); 
+        };
+        let profile = table::borrow_mut(profiles, student);
+            
         if(right_answer){
+            //Add the user to the winners list
+            table::add(winners, student, true);
+
+            //Update user profile
+            profile.level = profile.level + *points;
+            vector::push_back(&mut profile.answered_right, quest_uid);
+            
+            //If profile is good enough send the user a new unlocked achievement NFT
+            if (profile.level==1 || profile.level == 3 || profile.level ==7 || profile.level == 10)
             //Mint NFT to the student
-            let nft = RewardNFT {
-                id: object::new(ctx),
-                name : string::utf8(b"zkPrize"),
-                description: string::utf8(b"Unleash your brilliance silently and seize the zkPrize - Your winning answers, a mystery to all but winners!"),
-                url: url::new_unsafe_from_bytes(b"https://ipfs.io/ipfs/bafkreieo6hprbh3pjghihriasgjrg3fw6j2urmy6ti2k276qrl4k3uax2u"),
+            {
+                let id = object::new(ctx);
+                let b36addr = to_b36(uid_to_address(&id));
+                let nft = RewardNFT {
+                    id: id,
+                    b36addr: b36addr,
+                    game: shared_quest.game,
+                    level : profile.level,
+                    name : string::utf8(b"zkPrize"),
+                    description: string::utf8(b"At this level you get a new prize certified by zk. Get to the top level for the VIP prize."),
+                    url: url::new_unsafe(get_blob_from_number(profile.level)),
+                };
+                transfer::transfer(nft, student_answer.student_address);
             };
-            transfer::transfer(nft, student_answer.student_address);
+
+            //Send invisible answer NFT just to notify
+            // let nft = RightAnswerNFT {
+            //     id: object::new(ctx),
+            // };
+            // transfer::transfer(nft, student_answer.student_address);
+            
         } else{
+            if (!vec_map::contains(&profile.wrong_attempts, &quest_uid))
+             vec_map::insert(&mut profile.wrong_attempts, quest_uid, 0 ) ;
+        
+            let wrong_attempts_n = vec_map::get_mut(&mut profile.wrong_attempts, &quest_uid);
+            *wrong_attempts_n = *wrong_attempts_n + 1;
+            
             //Otherwise just do nothing (send the wrong answer NFT, any response is better than no)
-            let nft = WrongAnswerNFT {
-                id: object::new(ctx),
-            };
-            transfer::transfer(nft, student_answer.student_address);
+            // let nft = WrongAnswerNFT {
+            //     id: object::new(ctx),
+            // };
+            // transfer::transfer(nft, student_answer.student_address);
         };
         
         //Pop the answer from answers table anyway
-        table::remove(answers, student);       
+        table::remove(answers, UserQuest{ quest: quest_uid , user: student});       
     }
 
-    //This is a very important function. If the professor does not respond, mint NFT, even if the answer was wrong.
-    public entry fun student_get_timeout_reward(shared_quest: &mut Quest, clock: &Clock, ctx: &mut TxContext)
-    {
-        //Read current timestamp
-        let timestamp_current: u64 = clock::timestamp_ms(clock);
+    //This is a very important security gurantee function. If the professor does not respond, mint NFT, even if the answer was wrong.
+    //Temporarily disabled
+    // public entry fun student_get_timeout_reward(shared_quest: &mut Quest, clock: &Clock, ctx: &mut TxContext)
+    // {
+    //     //Read current timestamp
+    //     let timestamp_current: u64 = clock::timestamp_ms(clock);
 
-        //Get answers field for this quest
-        let answers = ofield::borrow_mut<vector<u8>, Table<address, Answer>>(&mut shared_quest.id, b"answers");
+    //     //Get answers field for this quest
+    //     let answers = ofield::borrow_mut<vector<u8>, Table<address, Answer>>(&mut shared_quest.id, b"answers");
 
-        //Assert that this student answered indeed
-        let student_address = tx_context::sender(ctx);
-        assert!(table::contains(answers, student_address), EStudentNoAnswer);
+    //     //Assert that this student answered indeed
+    //     let student_address = tx_context::sender(ctx);
+    //     assert!(table::contains(answers, student_address), EStudentNoAnswer);
         
-        //Lookup by caller address answer in shared_quest
-        let answer = table::borrow_mut(answers, student_address);
+    //     //Lookup by caller address answer in shared_quest
+    //     let answer = table::borrow_mut(answers, student_address);
 
-        //Retrieve its timestamp
-        let timestamp_answered = answer.timestamp_answered;
+    //     //Retrieve its timestamp
+    //     let timestamp_answered = answer.timestamp_answered;
 
-        //If professor (oracle) did not check the answer in 2 minutes,
-        //Pop answer 
-        //Reward the caller with NFT
-        if (timestamp_current - timestamp_answered > 2*60*1000)
-        {
-            table::remove(answers, student_address);
-            let nft = RewardNFT {
-                id: object::new(ctx),
-                name : string::utf8(b"zkPrize"),
-                description: string::utf8(b"Unleash your brilliance silently and seize the zkPrize - Your winning answers, a mystery to all but winners!"),
-                url: url::new_unsafe_from_bytes(b"https://ipfs.io/ipfs/bafkreieo6hprbh3pjghihriasgjrg3fw6j2urmy6ti2k276qrl4k3uax2u"),
-            };
-            transfer::transfer(nft, student_address);
-        }
-    }
+    //     //If professor (oracle) did not check the answer in 2 minutes,
+    //     //Pop answer 
+    //     //Reward the caller with NFT
+    //     if (timestamp_current - timestamp_answered > 2*60*1000)
+    //     {
+    //         table::remove(answers, student_address);
+    //         let nft = RewardNFT {
+    //             id: object::new(ctx),
+    //             name : string::utf8(b"zkPrize"),
+    //             description: string::utf8(b"Unleash your brilliance silently and seize the zkPrize - Your winning answers, a mystery to all but winners!"),
+    //             url: url::new_unsafe_from_bytes(b"https://ipfs.io/ipfs/bafkreieo6hprbh3pjghihriasgjrg3fw6j2urmy6ti2k276qrl4k3uax2u"),
+    //         };
+    //         transfer::transfer(nft, student_address);
+    //     }
+    // }
 
     fun verify(proof: vector<u8>, 
             vk_serialized: vector<u8>, public_inputs_serialized: vector<u8>): bool {
@@ -354,6 +502,56 @@ module dev::verifier {
 
         transfer::public_transfer(publisher, tx_context::sender(ctx));
         transfer::public_transfer(display, tx_context::sender(ctx));
+    }
+
+    
+    const BASE36: vector<u8> = b"0123456789abcdefghijklmnopqrstuvwxyz";
+    public fun to_b36(addr: address): String {
+    let source = address::to_bytes(addr);
+    let size = 2 * vector::length(&source);
+    let b36copy = BASE36;
+    let base = vector::length(&b36copy);
+    let encoding = vector::empty();
+    let i = 0;
+    while (i < size) {
+        vector::push_back(&mut encoding, 0);
+        i = i + 1;
+    };
+
+    let high = size - 1;
+
+        let source_len = vector::length(&source);
+    let j = 0;
+    while (j < source_len) {
+        let carry = (*vector::borrow(&source, j) as u64);
+        let it = size - 1;
+        
+        while (it > high || carry != 0) {
+            carry = carry + 256 * (*vector::borrow(&encoding, it) as u64);
+            let value = ((carry % base) as u8);
+            *vector::borrow_mut(&mut encoding, it) = value;
+            carry = carry / base;
+            it = it - 1;
+        };
+        high = it;
+        j = j + 1;
+    };
+
+    let str: vector<u8> = vector[];
+    let k = 0;
+    let leading_zeros = true;
+    while (k < vector::length(&encoding)) {
+        let byte = (*vector::borrow(&encoding, k) as u64);
+        if (byte != 0 && leading_zeros) {
+            leading_zeros = false;
+        };
+        let char = *vector::borrow(&b36copy,byte);
+        if (!leading_zeros) {
+            vector::push_back(&mut str, char);
+        };
+        k = k + 1;
+    };
+    string::utf8(str)
     }
 }
 

@@ -1,12 +1,17 @@
 require('dotenv').config();
 const mnemonic = process.env.PHRASE;
+const net = process.env.NET;
 
-const { localnetConnection, testnetConnection, mainnetConnection, TransactionBlock, Ed25519Keypair, JsonRpcProvider, RawSigner, mnemonicToSeed, Ed25519PublicKey, hasPublicTransfer } = require('@mysten/sui.js');
+//const { TransactionBlock, Ed25519Keypair, JsonRpcProvider, RawSigner, mnemonicToSeed, Ed25519PublicKey, hasPublicTransfer } = require('@mysten/sui.js');
 
+const { getFullnodeUrl, SuiClient } = require('@mysten/sui/client');
+const { Transaction } = require('@mysten/sui/transactions');
+const { Ed25519Keypair } = require('@mysten/sui/keypairs/ed25519');
 const keypair = Ed25519Keypair.deriveKeypair(mnemonic);
+const rpcUrl = getFullnodeUrl(net);
+// create a client connected to devnet
+const client = new SuiClient({ url: rpcUrl });
 
-const provider = new JsonRpcProvider(mainnetConnection);
-const signer = new RawSigner(keypair, provider);
 const fs = require("fs");
 
 async function publish(cliPath, packagePath) {
@@ -19,17 +24,17 @@ async function publish(cliPath, packagePath) {
             { encoding: 'utf-8' },
         ),
     );
-    const tx = new TransactionBlock();
+    const tx = new Transaction();
     const [upgradeCap] = tx.publish({
         modules,
         dependencies,
     });
-    tx.transferObjects([upgradeCap], tx.pure(await signer.getAddress()));
+    tx.transferObjects([upgradeCap], tx.pure.address(await keypair.toSuiAddress()));
 
     //Send the transaction to publish it and obtain Upgrade Capability
-    const result = await signer.signAndExecuteTransactionBlock({
-        transactionBlock: tx,
-    });
+
+
+    const result = await client.signAndExecuteTransaction({ transaction: tx, signer: keypair });
     console.log({ result });
 
     //A hardcoded digest for debug purpose
@@ -38,7 +43,7 @@ async function publish(cliPath, packagePath) {
     //Lookup this transaction block by digest
     await new Promise(r => setTimeout(r, 10000));
 
-    const effects = await provider.getTransactionBlock({
+    const effects = await client.getTransactionBlock({
         digest: result.digest,
         // only fetch the effects field
         options: { showEffects: true },

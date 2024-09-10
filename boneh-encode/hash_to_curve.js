@@ -6,8 +6,36 @@ shake128 = require('js-sha3').shake128;
 
 // This is our BabyJubJub Finite Field prime modulus
 const r = Scalar.fromString("21888242871839275222246405745257275088548364400416034343698204186575808495617");
+//The order of the EC-curve group is of course another number
+//"21888242871839275222246405745257275088614511777268538073601725287587578984328"
+//n = h x l
+// where
+
+// h = 8
+// l = 2736030358979909402780800718157159386076813972158567259200215660948447373041
+// So, l is the prime subgroup order
+
 const F = new ZqField(r);
+
+const r_EC = Scalar.fromString("2736030358979909402780800718157159386076813972158567259200215660948447373041");
+const F_EC = new ZqField(r_EC);
+    
 //console.log(F.bitLength);
+
+function message_to_professor_key(message)
+{
+    const key = message_to_field(F_EC, message).toString();
+    console.log({key})
+    return key
+}
+
+function random_keys(n){
+    const keys= [];
+    for (let index = 0; index < n; index++) {
+        keys.push(F_EC.random().toString());
+    }
+    return JSON.stringify(keys);
+}
 
 function message_to_field(F, message) {
     const hash = shake128.array(message, F.bitLength * 2 + 8);
@@ -81,4 +109,4 @@ function string_to_curve(s) {
     return { xx, yy }
 }
 
-module.exports = { string_to_curve, try_and_increment, montgomery_to_twisted_edwards }
+module.exports = { string_to_curve, try_and_increment, montgomery_to_twisted_edwards, message_to_professor_key, random_keys }
