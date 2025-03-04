@@ -1,5 +1,7 @@
 # 💎 Promise 
 
+[UPDATE] We won Sui Overflow 2024, Advanced move category!!! 
+
 [UPDATE] Now on Walrus, enjoy it here [promise.walrus.site](https://promise.walrus.site/).
 
 Safely blockchainify any puzzle game with zero-knowledge proofs.
